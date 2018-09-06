@@ -230,10 +230,52 @@ void Boids::copyBoidsToVBO(float *vbodptr_positions, float *vbodptr_velocities) 
 * in the `pos` and `vel` arrays.
 */
 __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *pos, const glm::vec3 *vel) {
-  // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
-  // Rule 2: boids try to stay a distance d away from each other
-  // Rule 3: boids try to match the speed of surrounding boids
-  return glm::vec3(0.0f, 0.0f, 0.0f);
+	
+	int n1 = 0; // Counter for rule 1
+	int n3 = 0; // Counter for rule 3
+	glm::vec3 rule1(0.0f); // rule 1 vel. change
+	glm::vec3 rule2(0.0f); // rule 2 vel. change
+	glm::vec3 rule3(0.0f); // rule 3 vel. change
+
+	// For all non-self boids
+	for (int i = 0; i < N ; i++) {
+		if (i != iSelf) {
+
+			// Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
+			if (abs(distance(pos[i], pos[iSelf])) < rule1Distance) {
+				// Sum positions
+				rule1 += pos[i];
+				n1++;
+			}
+
+			// Rule 2: boids try to stay a distance d away from each other
+			if (abs(distance(pos[i], pos[iSelf])) < rule2Distance) {
+				rule2 += pos[iSelf] - pos[i];
+			}
+
+			// Rule 3: boids try to match the speed of surrounding boids
+			if (abs(distance(pos[i], pos[iSelf])) < rule3Distance) {
+				// Sum velocities
+				rule3 += vel[i];
+				n3++;
+			}
+		}
+	}
+	// Average position (center of mass)
+	if (n1 > 0) { // realized I was dividing by zero
+		rule1 = rule1 / float(n1);
+		rule1 = (rule1 - pos[iSelf]) * rule1Scale;
+	}
+
+	rule2 = rule2 * rule2Scale;
+
+	// Average velocity
+	if (n3 > 0) {
+		rule3 = rule3 / float(n3);
+		rule3 = (rule3 - vel[iSelf]) * rule3Scale;
+	}
+  
+	return (rule1 + rule2 + rule3);
 }
 
 /**
@@ -242,9 +284,19 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
 */
 __global__ void kernUpdateVelocityBruteForce(int N, glm::vec3 *pos,
   glm::vec3 *vel1, glm::vec3 *vel2) {
-  // Compute a new velocity based on pos and vel1
-  // Clamp the speed
-  // Record the new velocity into vel2. Question: why NOT vel1?
+	int index = threadIdx.x + (blockIdx.x * blockDim.x);
+
+	// Compute a new velocity based on pos and vel1
+	glm::vec3 new_vel = computeVelocityChange(N, index, pos, vel1) + vel1[index];
+	
+	// Clamp the speed
+	float speed = length(new_vel); // calc. scalar speed
+	if (speed > maxSpeed) {
+		new_vel = new_vel * maxSpeed / speed; // reduce vel. proportionately to clamp speed to max
+	}
+
+	// Record the new velocity into vel2. Question: why NOT vel1?
+	vel2[index] = new_vel;
 }
 
 /**
@@ -347,8 +399,21 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 * Step the entire N-body simulation by `dt` seconds.
 */
 void Boids::stepSimulationNaive(float dt) {
-  // TODO-1.2 - use the kernels you wrote to step the simulation forward in time.
-  // TODO-1.2 ping-pong the velocity buffers
+	dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
+
+
+	// Update boid position with velocity
+	kernUpdatePos << <fullBlocksPerGrid, threadsPerBlock >> > (numObjects, dt, dev_pos, dev_vel1);
+
+	// Update boid velocity
+	kernUpdateVelocityBruteForce <<<fullBlocksPerGrid, threadsPerBlock>>>(numObjects, dev_pos, dev_vel1, dev_vel2);
+	
+	// ping-pong the velocity buffers
+	glm::vec3 *swap = dev_vel1;
+	dev_vel1 = dev_vel2;
+	dev_vel2 = swap;
+
+
 }
 
 void Boids::stepSimulationScatteredGrid(float dt) {
