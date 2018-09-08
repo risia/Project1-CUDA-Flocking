@@ -412,50 +412,26 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 	if (index >= N) return;
 
-	// 3D grid index
-	int gX = (pos[index].x - gridMin.x) * inverseCellWidth;
-	int gY = (pos[index].y - gridMin.y) * inverseCellWidth;
-	int gZ = (pos[index].z - gridMin.z) * inverseCellWidth;
-
-	int gIdx = gridIndex3Dto1D(gX, gY, gZ, gridResolution); // 1D grid index
-
   // - Identify which cells may contain neighbors. This isn't always 8.
-	//generate search bounds
+	// calculate search bounds
+	float search_r = rule1Distance;
+	if (rule2Distance > search_r) search_r = rule2Distance;
+	if (rule3Distance > search_r) search_r = rule3Distance;
 
-	// positive bound check
-	int neighbor_X = (pos[index].x + cellWidth / 2.0f - gridMin.x) * inverseCellWidth;
-	int neighbor_Y = (pos[index].y + cellWidth / 2.0f - gridMin.y) * inverseCellWidth;
-	int neighbor_Z = (pos[index].z + cellWidth / 2.0f - gridMin.z) * inverseCellWidth;
+	int xMax = (pos[index].x - gridMin.x + search_r) * inverseCellWidth;
+	int xMin = (pos[index].x - gridMin.x - search_r) * inverseCellWidth;
+	int yMax = (pos[index].y - gridMin.y + search_r) * inverseCellWidth;
+	int yMin = (pos[index].y - gridMin.y - search_r) * inverseCellWidth;
+	int zMax = (pos[index].z - gridMin.z + search_r) * inverseCellWidth;
+	int zMin = (pos[index].z - gridMin.z - search_r) * inverseCellWidth;
 
-	// wrap bounds
-	if (neighbor_X >= gridResolution) neighbor_X = 0;
-	if (neighbor_Y >= gridResolution) neighbor_Y = 0;
-	if (neighbor_Z >= gridResolution) neighbor_Z = 0;
-
-	//negative bound check
-	if (neighbor_X == gX) {
-		neighbor_X = (pos[index].x - cellWidth / 2.0f - gridMin.x) * inverseCellWidth;
-	}
-	if (neighbor_Y == gY) {
-		neighbor_Y = (pos[index].y - cellWidth / 2.0f - gridMin.y) * inverseCellWidth;
-	}
-	if (neighbor_Z == gZ) {
-		neighbor_Z = (pos[index].z - cellWidth / 2.0f - gridMin.z) * inverseCellWidth;
-	}
-
-	// wrap bounds
-	if (neighbor_X < 0) neighbor_X = gridResolution - 1;
-	if (neighbor_Y < 0) neighbor_Y = gridResolution - 1;
-	if (neighbor_Z < 0) neighbor_Z = gridResolution - 1;
-
-	int c[8] = { -1, -1, -1, -1, -1, -1, -1, gIdx}; // eigth cell is self
-	if (neighbor_X != gX) c[0] = gridIndex3Dto1D(neighbor_X, gY, gZ, gridResolution); //x
-	if (neighbor_Y != gY) c[1] = gridIndex3Dto1D(gX, neighbor_Y, gZ, gridResolution); //y
-	if (neighbor_Z != gZ) c[2] = gridIndex3Dto1D(gX, gY, neighbor_Z, gridResolution); //z
-	if (c[0] != -1 && c[1] != -1) c[3] = gridIndex3Dto1D(neighbor_X, neighbor_Y, gZ, gridResolution); // xy
-	if (c[0] != -1 && c[2] != -1) c[4] = gridIndex3Dto1D(neighbor_X, gY, neighbor_Z, gridResolution); // xz
-	if (c[1] != -1 && c[2] != -1) c[5] = gridIndex3Dto1D(gX, neighbor_Y, neighbor_Z, gridResolution); // yz
-	if (c[0] != -1 && c[1] != -1 && c[2] != -1) c[6] = gridIndex3Dto1D(neighbor_X, neighbor_Y, neighbor_Z, gridResolution); // xyz
+	// clamp bounds
+	if (xMin < 0) xMin = 0;
+	if (xMax >= gridResolution) xMax = gridResolution - 1;
+	if (yMin < 0) yMin = 0;
+	if (yMax >= gridResolution) yMax = gridResolution - 1;
+	if (zMin < 0) zMin = 0;
+	if (zMax >= gridResolution) zMax = gridResolution - 1;
 
 	int start; // index first boid listed in grid cell
 	int end; // index last boid listed in grid cell
@@ -467,30 +443,35 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 	glm::vec3 rule1(0.0f); // rule 1 vel. change
 	glm::vec3 rule2(0.0f); // rule 2 vel. change
 	glm::vec3 rule3(0.0f); // rule 3 vel. change
+
+	int gIdx;
 	
   // - For each cell, read the start/end indices in the boid pointer array.
   // - Access each boid in the cell and compute velocity change from
   //   the boids rules, if this boid is within the neighborhood distance.
 
-	for (int cell = 0; cell < 8; cell++) {
-		if (cell == -1) continue;
-		// search this cell
-		start = gridCellStartIndices[c[cell]];
-		end = gridCellEndIndices[c[cell]];
-		if (start != -1) { // if cell not empty
-			for (int i = start; i < end; i++) {
-				p_Idx = particleArrayIndices[i];
-				if (abs(distance(pos[p_Idx], pos[index])) < rule1Distance) {
-					rule1 += pos[p_Idx];
-					n1++;
-				}
-				if (abs(distance(pos[p_Idx], pos[index])) < rule2Distance) {
-					rule2 += pos[index] - pos[p_Idx];
-				}
-				if (abs(distance(pos[p_Idx], pos[index])) < rule3Distance) {
-					// Sum velocities
-					rule3 += vel1[p_Idx];
-					n3++;
+	for (int x = xMin; x <= xMax; x++) {
+		for (int y = yMin; y <= yMax; y++) {
+			for (int z = zMin; z <= zMax; z++) {
+				gIdx = gridIndex3Dto1D(x, y, z, gridResolution);
+				start = gridCellStartIndices[gIdx];
+				end = gridCellEndIndices[gIdx];
+				if (start != -1) { // if cell not empty
+					for (int i = start; i < end; i++) {
+						p_Idx = particleArrayIndices[i];
+						if (abs(distance(pos[p_Idx], pos[index])) < rule1Distance) {
+							rule1 += pos[p_Idx];
+							n1++;
+						}
+						if (abs(distance(pos[p_Idx], pos[index])) < rule2Distance) {
+							rule2 += pos[index] - pos[p_Idx];
+						}
+						if (abs(distance(pos[p_Idx], pos[index])) < rule3Distance) {
+							// Sum velocities
+							rule3 += vel1[p_Idx];
+							n3++;
+						}
+					}
 				}
 			}
 		}
