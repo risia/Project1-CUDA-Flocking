@@ -738,7 +738,7 @@ void Boids::stepSimulationCoherentGrid(float dt) {
 
 	swap = dev_pos;
 	dev_pos = dev_swapBuffer;
-	dev_swapBuffer = dev_pos;
+	dev_swapBuffer = swap;
 
 	// - Update positions
 	kernUpdatePos << <fullBlocksPerGrid, threadsPerBlock >> > (numObjects, dt, dev_pos, dev_vel1);
