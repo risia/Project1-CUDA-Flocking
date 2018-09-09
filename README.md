@@ -30,7 +30,7 @@ Project 1 - Flocking**
   ![Late in Simulation](/images/CoherentGridSim3.PNG)
   
   Animation at 15000 Boids (for increased FPS)
-  ![Animated Coherent Grid](/images/coherentuniformgrid.gif)
+  ![Animated Coherent Grid](/images/uniformcoherentgrid.gif)
   
 Include screenshots, analysis, etc. (Remember, this is public, so don't put
 anything here that you don't want to share with the world.)
