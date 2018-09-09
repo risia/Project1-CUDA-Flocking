@@ -217,6 +217,9 @@ void initShaders(GLuint * program) {
     double timebase = 0;
     int frame = 0;
 
+	double avg_fps = 0;
+	double cnt = 0;
+
     Boids::unitTest(); // LOOK-1.2 We run some basic example code to make sure
                        // your CUDA development setup is ready to go.
 
@@ -233,6 +236,9 @@ void initShaders(GLuint * program) {
       }
 
       runCUDA();
+
+	  avg_fps += fps;
+	  cnt++;
 
       std::ostringstream ss;
       ss << "[";
@@ -256,6 +262,10 @@ void initShaders(GLuint * program) {
       glfwSwapBuffers(window);
       #endif
     }
+
+	avg_fps = avg_fps / cnt;
+	printf("avg FPS: %f", avg_fps);
+
     glfwDestroyWindow(window);
     glfwTerminate();
   }
