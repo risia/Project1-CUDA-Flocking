@@ -37,7 +37,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 *****************/
 
 /*! Block size used for CUDA kernel launch. */
-#define blockSize 128
+#define blockSize 1024
 
 // LOOK-1.2 Parameters for the boids algorithm.
 // These worked well in our reference implementation.
@@ -447,11 +447,10 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 	int n1 = 0; // rule 1 counter
 	int n3 = 0; // rule 3 counter
 	glm::vec3 rule1(0.0f); // rule 1 vel. change
-	glm::vec3 rule2(0.0f); // rule 2 vel. change
+	// rule 2 vel. change is in new_vel
 	glm::vec3 rule3(0.0f); // rule 3 vel. change
 
 	float dist;
-
 	int gIdx;
 	
   // - For each cell, read the start/end indices in the boid pointer array.
@@ -474,7 +473,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 								n1++;
 							}
 							if (dist < rule2Distance) {
-								rule2 += pos[index] - pos[p_Idx];
+								new_vel += pos[index] - pos[p_Idx];
 							}
 							if (dist < rule3Distance) {
 								// Sum velocities
@@ -493,18 +492,17 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 		rule1 = rule1 / float(n1);
 		rule1 = (rule1 - pos[index]) * rule1Scale;
 	}
-	rule2 = rule2 * rule2Scale;
+	new_vel = new_vel * rule2Scale;
 	// Average velocity
 	if (n3 > 0) {
 		rule3 = rule3 / float(n3);
 		rule3 = (rule3 - vel1[index]) * rule3Scale;
 	}
-	new_vel = rule1 + rule2 + rule3 + vel1[index];
+	new_vel = rule1 + rule3 + vel1[index];
 
   // - Clamp the speed change before putting the new speed in vel2
-	float speed = length(new_vel); // calc. scalar speed
-	if (speed > maxSpeed) {
-		new_vel = new_vel * maxSpeed / speed; // reduce vel. proportionately to clamp speed to max
+	if (length(new_vel) > maxSpeed) {
+		new_vel = new_vel * maxSpeed / length(new_vel); // reduce vel. proportionately to clamp speed to max
 	}
 
 	// Record the new velocity into vel2
