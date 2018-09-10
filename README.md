@@ -36,7 +36,7 @@ Animation at 15000 Boids (for increased FPS)
 Performance was tested on all three solutions by taking the average FPS during the runtime, which was timed for approximately 1 minute. The default standard for comparison is the number of boids at 5000, block size of 128, and cell width of twice the search radius. Visualization was disabled to get a more accurate measure of performance, especially when a large number of particles would need rendering.  
   
 * Changing # of Boids:  
-  Increasing the number of boids has the overall trend of decreasing performance. This is especially true for the naive implementation as the processing time is proportional to N^2, due to each boid checking all other boids. However, the grid-based searches have abnormalities in their performance, dipping at low boid counts, then increasing and following a less sharp decrease in performance. Due to errors described prior I had difficulties getting performance data for certain ranges of boid counts.
+  Increasing the number of boids has the overall trend of decreasing performance. This is especially true for the naive implementation as the processing time is proportional to N^2, due to each boid checking all other boids. However, the grid-based searches have abnormalities in their performance, dipping at low boid counts, then increasing and following a less sharp decrease in performance. From 10000 boids up you can see the linear decrease with doubling boid counts, indicating a logarithmic relationship less steep than the naive N^2 one. Due to errors described prior I had difficulties getting performance data for certain ranges of boid counts.
   ![FPS Graph w/ Change in Boid Count](/images/defaultFPS.PNG)
 
 * Changing Block Size:  
