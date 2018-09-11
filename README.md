@@ -29,7 +29,7 @@ Animation at 15000 Boids (for increased FPS)
   - May be some sort of setup issue, needs testing on another machine but code appears correct
     * Tried changing architecture to sm_50 (which should be supported by graphics card) and running CMake, but CUDA launch failure
   - Does NOT occur in Naive simulation, probably since it doesn't use Thrust
-* After decreasing the cell width to max of rule distances, the program crashed with illegal memory access @ 5000 objects (triggered at buffer reset?), and crashed with a runtime error at higher values, but 4000 ojects works fine and is used for performance analysis~~  
+* After decreasing the cell width to max of rule distances, the program crashed with illegal memory access @ 5000 objects (triggered at buffer reset?), and crashed with a runtime error at higher values, but 4000 ojects works fine and is used for performance analysis~~
   
 As of most recent commit these errors are resolved. It was due to an error in which variable was used to size the grid start/end buffers.
     
